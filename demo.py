@@ -109,7 +109,7 @@ obs = minimize(scope, log_norm, energy, num_steps,
 model_path = output_path + "model.ckpt"
 variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
 saver = tf.train.Saver(variables)
-sess = tf.Session()
+sess = tf.compat.v1.Session()
 assert restore(sess, saver, model_path, True), "failed to load the model."
 # evaluation
 print("Evaluating ...")

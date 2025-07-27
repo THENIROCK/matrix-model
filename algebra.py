@@ -236,7 +236,7 @@ class SU(Gauge, LieAlgebra):
         """
         assert x.shape[-1] == x.shape[-2] == self.N, "dimension mismatch"
         with tf.device("/cpu:0"):
-            e, u = tf.self_adjoint_eig(x[:, 0, :, :]) # x = u diag(e) u^dagger
+            e, u = tf.linalg.eigh(x[:, 0, :, :]) # x = u diag(e) u^dagger
         local_device_protos = device_lib.list_local_devices()
         local_gpu_devices = [x.name for x in local_device_protos if x.device_type == 'GPU']
         device = "/gpu:0" if len(local_gpu_devices) > 0 else "/cpu:0"
@@ -245,19 +245,19 @@ class SU(Gauge, LieAlgebra):
             # fix the residual U(1)^N gauge symemtry
             batch_size = int(x.shape[0])
             # gradient of tf.sign is problematic for complex numbers!
-            sign = lambda x: x / tf.cast(tf.sqrt(tf.real(tf.conj(x) * x)), tf.complex64)
-            # next_diagonal = tf.matrix_diag_part(tf.roll(y[:, 1, :, :], shift=-1, axis=-1))[:, :-1]
-            next_diagonal = tf.reduce_sum(tf.matrix_band_part(y[:, 1, :, :], 0, 1), axis=-1) - tf.matrix_diag_part(y[:, 1, :, :])
+            sign = lambda x: x / tf.cast(tf.sqrt(tf.math.real(tf.math.conj(x) * x)), tf.complex64)
+            # next_diagonal = tf.linalg.diag_part(tf.roll(y[:, 1, :, :], shift=-1, axis=-1))[:, :-1]
+            next_diagonal = tf.reduce_sum(tf.linalg.band_part(y[:, 1, :, :], 0, 1), axis=-1) - tf.linalg.diag_part(y[:, 1, :, :])
             next_diagonal = next_diagonal[:, :-1]
             p = tf.concat([tf.ones([batch_size, 1], dtype=tf.complex64), sign(next_diagonal)], axis=-1)
             # gradient of tf.cumprod is also problematic for complex numbers ...
-            # p = tf.exp(tf.conj(tf.cumsum(tf.log(-1j * p), axis=-1)))
-            log = lambda x: tf.cast(tf.log(tf.real(x) * tf.real(x) + tf.imag(x) * tf.imag(x)) / 2, tf.complex64) \
-                + 1j * tf.cast(tf.atan2(tf.imag(x), tf.real(x)), tf.complex64)
+            # p = tf.exp(tf.math.conj(tf.cumsum(tf.math.log(-1j * p), axis=-1)))
+            log = lambda x: tf.cast(tf.math.log(tf.math.real(x) * tf.math.real(x) + tf.math.imag(x) * tf.math.imag(x)) / 2, tf.complex64) \
+                + 1j * tf.cast(tf.atan2(tf.math.imag(x), tf.math.real(x)), tf.complex64)
             power = lambda x, a: tf.exp(tf.cast(a, tf.complex64) * log(x))
             logp = log(-1j * p)
-            p = tf.exp(tf.cast(tf.cumsum(tf.real(logp), axis=-1), tf.complex64) - 1j * tf.cast(tf.cumsum(tf.imag(logp), axis=-1), tf.complex64))
-            u, y = u * tf.expand_dims(p, -2), tf.einsum("bi,brij,bj->brij", tf.conj(p), y, p)
+            p = tf.exp(tf.cast(tf.cumsum(tf.math.real(logp), axis=-1), tf.complex64) - 1j * tf.cast(tf.cumsum(tf.math.imag(logp), axis=-1), tf.complex64))
+            u, y = u * tf.expand_dims(p, -2), tf.einsum("bi,brij,bj->brij", tf.math.conj(p), y, p)
             return u / power(tf.linalg.det(u)[:, tf.newaxis, tf.newaxis], 1 / self.N), y
 
     def log_orbit_measure(self, y):
@@ -271,13 +271,13 @@ class SU(Gauge, LieAlgebra):
             log_measure (tensor of shape (batch_size,)): log measure of the gauge orbit
         """
         assert y.shape[-1] == y.shape[-2] == self.N, "dimension mismatch"
-        e  = tf.matrix_diag_part(y[:, 0, :, :]) # shape (batch_size, N)
+        e  = tf.linalg.diag_part(y[:, 0, :, :]) # shape (batch_size, N)
         diff = tf.expand_dims(e, axis=-1) - tf.expand_dims(e, axis=-2)
-        log_det = tf.reduce_sum(tf.log(tf.eye(self.N) + tf.abs(diff)), axis=[-1, -2])
-        # next_diagonal = tf.matrix_diag_part(tf.roll(y[:, 1, :, :], shift=-1, axis=-1))[:, :-1]
-        next_diagonal = tf.reduce_sum(tf.matrix_band_part(y[:, 1, :, :], 0, 1), axis=-1) - tf.matrix_diag_part(y[:, 1, :, :])
+        log_det = tf.reduce_sum(tf.math.log(tf.eye(self.N) + tf.abs(diff)), axis=[-1, -2])
+        # next_diagonal = tf.linalg.diag_part(tf.roll(y[:, 1, :, :], shift=-1, axis=-1))[:, :-1]
+        next_diagonal = tf.reduce_sum(tf.linalg.band_part(y[:, 1, :, :], 0, 1), axis=-1) - tf.linalg.diag_part(y[:, 1, :, :])
         next_diagonal = next_diagonal[:, :-1]
-        return log_det + tf.reduce_sum(tf.log(tf.abs(next_diagonal)), axis=-1)
+        return log_det + tf.reduce_sum(tf.math.log(tf.abs(next_diagonal)), axis=-1)
 
     def _random_element(self, batch_size):
         """Generates a batch of random Haar unitaries in SU(N). 

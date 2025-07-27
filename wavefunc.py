@@ -55,7 +55,7 @@ class Dense():
         else:
             mask = self._gen_mask(num_blocks, input_depth, units, exclusive).T
             def masked_initializer(shape, dtype=None, partition_info=None):
-                kernel_initializer = tf.glorot_normal_initializer()
+                kernel_initializer = tf.compat.v1.glorot_normal_initializer()
                 return mask * kernel_initializer(shape, dtype, partition_info)
             return {
                     "kernel_initializer": masked_initializer, 
@@ -126,7 +126,7 @@ class Autoregressive(Distribution):
         self.dist = dist
         self.event_size = len(dist)
         self.offset = offset
-        with tf.variable_scope(scope):
+        with tf.compat.v1.variable_scope(scope):
             self.network = Dense(self.event_size, sum(d.tot_num_params for d in dist), hidden_dim, num_layers, masked=True)
 
     def sample(self, sample_shape, params=None):
@@ -184,19 +184,19 @@ class NormalizingFlow(Distribution):
         self.event_size = event_size = len(self.dist)
         self.offset = offset
         bijector = []
-        with tf.variable_scope(scope):
+        with tf.compat.v1.variable_scope(scope):
             for i in range(num_layers + 1):
-                scale = tfd.fill_triangular(tf.get_variable("weights_" + str(i), shape=[event_size*(event_size+1)//2], initializer=tf.zeros_initializer()))
-                scale = tf.matrix_set_diag(scale, tf.exp(tf.matrix_diag_part(scale))) # ensure that the transformation is invertible
+                scale = tf.contrib.distributions.fill_triangular(tf.compat.v1.get_variable("weights_" + str(i), shape=[event_size*(event_size+1)//2], initializer=tf.zeros_initializer()))
+                scale = tf.matrix_set_diag(scale, tf.exp(tf.linalg.diag_part(scale))) # ensure that the transformation is invertible
                 scale = tf.linalg.LinearOperatorLowerTriangular(scale)
-                shift = tf.get_variable("shift_" + str(i), shape=[event_size])
+                shift = tf.compat.v1.get_variable("shift_" + str(i), shape=[event_size])
                 bijector = [tfp.bijectors.AffineLinearOperator(shift=shift, scale=scale)] + bijector
                 if i < num_layers:
                     # if not the output layer
                     bijector = [activation] + bijector
         # use tfd.Chain() to concatenate the bijectors
         self.bijector = tfp.bijectors.Chain(bijector)
-        with tf.variable_scope(scope):
+        with tf.compat.v1.variable_scope(scope):
             # initializes the bijectors
             samples = self.sample([1, self.event_size])
             log_prob = self.log_prob(samples)
@@ -254,21 +254,21 @@ class Vectorizer():
         """
         batch_size = int(rep.shape[0])
         if self.bijector is None:
-            return tf.real(tf.reshape(self.algebra.matrix_to_vector(rep), [batch_size, -1]))
+            return tf.math.real(tf.reshape(self.algebra.matrix_to_vector(rep), [batch_size, -1]))
         else:
-            e = tf.matrix_diag_part(rep[:, 0, :, :])
+            e = tf.linalg.diag_part(rep[:, 0, :, :])
             # by our gauge fixing, each row of e must be nondecreasing
-            diff = tf.cast(self.bijector.inverse(tf.real(e[:, 1:] - e[:, :-1])), tf.complex64) # shape (batch_size, N - 1)
+            diff = tf.cast(self.bijector.inverse(tf.math.real(e[:, 1:] - e[:, :-1])), tf.complex64) # shape (batch_size, N - 1)
             vec_rest = tf.reshape(self.algebra.matrix_to_vector(rep[:, 1:, :, :]), [batch_size, -1])
             # by our gauge fixing, first (N - 1) elements in each row of vec_rest must vanish
             # and the following (N - 1) elements must be positive
             # note this depends on our ordering of the SU(N) basis in algebra.py
             dim = self.algebra.N - 1
             vec_rep = tf.concat([diff, 
-                                 tf.cast(self.bijector.inverse(tf.real(vec_rest[:, dim:2*dim])), tf.complex64), 
+                                 tf.cast(self.bijector.inverse(tf.math.real(vec_rest[:, dim:2*dim])), tf.complex64), 
                                  vec_rest[:, 2*dim:]], 
                                 axis=-1)
-            return tf.real(vec_rep)
+            return tf.math.real(vec_rep)
 
     def decode(self, vec_rep):
         """De-vectorizes the bosonic matrices. Reverse of the encode method.
@@ -327,7 +327,7 @@ class FermionicWavefunction():
         self.num_matrices = num_matrices
         self.num_fermions = num_fermions
         self.rank = rank
-        with tf.variable_scope(scope):
+        with tf.compat.v1.variable_scope(scope):
             output_dim = rank * num_fermions * num_matrices * algebra.dim
             if output_dim == 0:
                 self.states = None
@@ -340,7 +340,7 @@ class FermionicWavefunction():
                         imag = f(*args, **kwargs)
                         return tf.complex(real, imag)
                     return initializer
-                self.states = tf.get_variable("states", shape=[output_dim], dtype=tf.complex64, initializer=complex_initializer(tf.glorot_uniform_initializer))
+                self.states = tf.compat.v1.get_variable("states", shape=[output_dim], dtype=tf.complex64, initializer=complex_initializer(tf.glorot_uniform_initializer))
             else:
                 # the fermionic state depends on bosonic coordinates via a multilayer perceptron
                 self.states_re = Dense(bosonic_dim, output_dim, fermionic_hidden_dim, fermionic_num_layers)

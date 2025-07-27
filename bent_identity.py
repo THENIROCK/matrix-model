@@ -47,24 +47,24 @@ class BentIdentity(bijector.Bijector):
         name=name)
 
   def _forward(self, x):
-    return tf.where(x > 0, 2. * x + tf.log(1. + tf.exp(-x)), 
-                           x + tf.log(1. + tf.exp(x)))
+    return tf.where(x > 0, 2. * x + tf.math.log(1. + tf.exp(-x)), 
+                           x + tf.math.log(1. + tf.exp(x)))
 
   def _inverse(self, y):
     # x = Log[(Sqrt(1 + 4 exp(y)) - 1) / 2]
     # when y is very negative, the numerator becomes very small, and x approx y
     threshold = np.log(np.finfo(y.dtype.as_numpy_dtype).eps) + 2.
-    return tf.where(y > threshold, y / 2. + tf.log( (tf.sqrt(4.+tf.exp(-y)) - tf.exp(-y/2.))/2. ),
+    return tf.where(y > threshold, y / 2. + tf.math.log( (tf.sqrt(4.+tf.exp(-y)) - tf.exp(-y/2.))/2. ),
                                    y)
 
   def _inverse_log_det_jacobian(self, y):
     # dx / dy = 2 exp(y) / (1 + 4 exp(y) - sqrt(1 + 4 exp(y)))
     # when y is very negative, the demoninator becomes very small, and dx / dy approx 1
     threshold = np.log(np.finfo(y.dtype.as_numpy_dtype).eps) + 2.
-    return tf.where(y > threshold, tf.log(2.) - tf.log( 4. + tf.exp(-y) - tf.sqrt(4.*tf.exp(-y)+tf.exp(-2.*y)) ),
+    return tf.where(y > threshold, tf.math.log(2.) - tf.math.log( 4. + tf.exp(-y) - tf.sqrt(4.*tf.exp(-y)+tf.exp(-2.*y)) ),
                                    tf.zeros_like(y))
 
   def _forward_log_det_jacobian(self, x):
-    return tf.where(x > 0, tf.log(2. + tf.exp(-x)) - tf.log(1. + tf.exp(-x)),
-                           tf.log(1. + 2. * tf.exp(x)) - tf.log(1. + tf.exp(x)))
+    return tf.where(x > 0, tf.math.log(2. + tf.exp(-x)) - tf.math.log(1. + tf.exp(-x)),
+                           tf.math.log(1. + 2. * tf.exp(x)) - tf.math.log(1. + tf.exp(x)))
 

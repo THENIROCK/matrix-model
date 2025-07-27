@@ -2,6 +2,13 @@
 Here is the implementation of the variational quantum Monte Carlo for low-energy states in mini-BMN matrix models. The wavefunction ansatz consists of generative flows for bosons and superposition of free states for fermions. For more details please see arXiv:1906.08781.
 
 ## Setup
+> **_Additional step for M1 M2 M3 processors:_** Tensorflow and Python 3.7 don't natively run on these chipsets. So you will need to: 
+1. Install Rosetta 2 `/usr/sbin/softwareupdate --install-rosetta --agree-to-license`
+2. Create empty environment `conda create -n py37`
+3. Activate `conda activate py37`
+4. Use x86_64 architecture channel(s) `conda config --env --set subdir osx-64`
+
+### Normal Setup
 I recommend Anaconda (https://www.anaconda.com/) for environment setup. Please install Anaconda from the website and create an environment as follows:
 
   1. Run the command `conda create -n tf tensorflow=1.13 tensorflow-probability=0.6.0 matplotlib` to create an environment named `tf` (feel free to use other names);

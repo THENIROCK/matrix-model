@@ -42,7 +42,7 @@ def gauge_fix(wavefunc, bosonic):
         loss = -tf.real(tf.reduce_sum(tf.conj(saddle) * rep, [1, 2, 3]))
         obs = minimize(name, 0, loss, 1000, {"loss" : loss})
         saver = tf.train.Saver([mats])
-        sess = tf.Session()
+        sess = tf.compat.v1.Session()
         assert restore(sess, saver, "results/" + name + "/model.ckpt", True), "restoration failed"
         return tf.constant(sess.run(rep))
 
@@ -117,7 +117,7 @@ def matrix_entanglement(scope, wavefunc, restore_path, n=2, num_samples=1000):
     model_path = restore_path + "model.ckpt"
     variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
     saver = tf.train.Saver(variables)
-    sess = tf.Session()
+    sess = tf.compat.v1.Session()
     assert restore(sess, saver, model_path, True), "failed to load the model."
     # prepare the samples beforehand
     samples = [wavefunc.sample(num_samples) for _ in range(n)]

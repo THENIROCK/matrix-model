@@ -134,7 +134,7 @@ class Symmetrize(Distribution):
         return self.dist.sample(sample_shape, params) * sign
 
     def log_prob(self, samples, params=None):
-        return self.dist.log_prob(tf.abs(samples), params) - tf.log(2.)
+        return self.dist.log_prob(tf.abs(samples), params) - tf.math.log(2.)
 
 
 class Permute(Distribution):
@@ -288,13 +288,13 @@ class GeneralizedNormal(Distribution):
         v = self._get_params(params)
         v = broadcast_to(v, sample_shape)
         x = tfd.Gamma(1 / v, 1.0).sample()
-        samples = tf.pow(x, 1 / v)
+        samples = tf.math.pow(x, 1 / v)
         return tf.stop_gradient(samples)
 
     def log_prob(self, samples, params=None):
         v = self._get_params(params)
         v = broadcast_to(v, samples.shape)
-        return -tf.pow(samples, v) + tf.log(v) - tf.lgamma(1 / v)
+        return -tf.math.pow(samples, v) + tf.math.log(v) - tf.math.lgamma(1 / v)
 
 
 class Gamma(Distribution):

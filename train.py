@@ -74,7 +74,7 @@ def minimize(scope, log_norm, energy, steps, check_obs={}, \
     loss = tf.reduce_mean(loss)
     variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
     # print(variables)
-    print("Total number of parameters:", sum(tf.Session().run(tf.size(v)) for v in variables))
+    print("Total number of parameters:", sum(tf.compat.v1.Session().run(tf.size(v)) for v in variables))
     optimizer = tf.train.AdamOptimizer(learning_rate=lr)
     grads_and_vars = optimizer.compute_gradients(loss, variables)
     grads_and_vars = [(zero_nan(tf.clip_by_norm(grad, 1.0)), var) for grad, var in grads_and_vars if grad is not None]               
