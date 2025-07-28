@@ -175,6 +175,27 @@ def casimir(wavefunc, bosonic, dbosonic, dfermionic):
 
 
 def matrix_kinetic_energy(wavefunc, bosonic):
+    """
+    Computes the kinetic energy density for a system of bosonic matrices in a gauge theory.
+
+    Args:
+        wavefunc: A Wavefunction object that maps bosonic coordinates to (optionally) fermionic states.
+        bosonic: A tensor of shape (batch_size, num_matrices, N, N) representing a batch of bosonic matrix configurations.
+
+    Returns:
+        A tensor of shape (batch_size,) giving the kinetic energy density for each configuration in the batch.
+
+    How it works:
+        - Asserts that the bosonic matrices are square.
+        - Determines the batch size, number of matrices, and matrix size N.
+        - Constructs the SU(N) algebra.
+        - For each bosonic matrix, generates a random algebra element for each sample in the batch,
+          converts it to matrix form, and stacks these to form dbosonic, representing an infinitesimal
+          variation in the bosonic directions.
+        - Calls the casimir() function, which computes the expectation value of the quadratic
+          Casimir operator (essentially the Laplacian on the group manifold), which corresponds to the
+          kinetic energy term in the Hamiltonian.
+    """
     assert bosonic.shape[-1] == bosonic.shape[-2], "dimension mismatch"
     batch_size, num_matrices, N, _ = bosonic.shape.as_list()
     algebra = SU(N)
@@ -306,86 +327,6 @@ def BFSS_bosonic_energy(wavefunc, bosonic, potential_only=False):
     """
     kinetic = 0.5 * matrix_kinetic_energy(wavefunc, bosonic)
     potential = -0.25 * matrix_commutator_square(bosonic)
-    
-    return potential if potential_only else kinetic + potential
-
-
-def BFSS_color_energy(g, coherent_expectation_X_squared, coherent_expectation_X_i_X_j, wavefunc, bosonic, potential_only=False):
-    """Returns the energy density of the BFSS Hamiltonian with color indices and coherent state expectation values.
-    
-    The Hamiltonian is:
-    H_α = (P^i)²/2 + (P_A^i)²/2
-          + (1/2) g² ⟨α|X^i²|α⟩ X_A^j²
-          - (1/2) g² ⟨α|X_i X_j|α⟩ X_A^i X_A^j
-          + (1/4) g² X_A^i² X_B^j²
-          - (1/4) g² X_A^i X_B^j X_A^j X_B^i
-    
-    Arguments:
-        g (float): coupling constant
-        coherent_expectation_X_squared (float): ⟨α|X^i²|α⟩ (coherent state expectation value)
-        coherent_expectation_X_i_X_j (float): ⟨α|X_i X_j|α⟩ (coherent state expectation value)
-        wavefunc (Wavefunction): the wavefunction object
-        bosonic (tensor of shape (batch_size, 6, N, N)): color-indexed bosonic matrices
-        potential_only (bool): whether to ignore kinetic terms, mainly for test use
-        
-    Returns:
-        energy (tensors of shape (batch_size,)): energy densities
-    """
-    assert bosonic.shape[1] == 6, f"Expected 6 matrices (2 colors × 3 spatial), got {bosonic.shape[1]}"
-    
-    # Import the color helper functions
-    from color_bfss_helpers import extract_color_matrices
-    
-    # Extract matrices by color
-    color_mats = extract_color_matrices(bosonic)
-    X_A_mats = color_mats['A']  # [X_A^1, X_A^2, X_A^3]
-    X_B_mats = color_mats['B']  # [X_B^1, X_B^2, X_B^3]
-    
-    # Kinetic energy (if not potential_only)
-    kinetic = 0.0
-    if not potential_only:
-        kinetic = 0.5 * matrix_kinetic_energy(wavefunc, bosonic)
-    
-    # Potential energy terms
-    
-    # Term 1: (1/2) g² ⟨α|X^i²|α⟩ X_A^j²
-    term1 = 0.0
-    for j, X_A_j in enumerate(X_A_mats):
-        # tr(X_A^j²)
-        trace_X_A_j_squared = tf.einsum("bij,bji->b", X_A_j, X_A_j)
-        term1 += tf.math.real(trace_X_A_j_squared)
-    term1 = 0.5 * g * g * coherent_expectation_X_squared * term1
-    
-    # Term 2: -(1/2) g² ⟨α|X_i X_j|α⟩ X_A^i X_A^j
-    term2 = 0.0
-    for i, X_A_i in enumerate(X_A_mats):
-        for j, X_A_j in enumerate(X_A_mats):
-            if i != j:  # Only for i ≠ j
-                # tr(X_A^i X_A^j)
-                trace_X_A_i_X_A_j = tf.einsum("bij,bji->b", X_A_i, X_A_j)
-                term2 += tf.math.real(trace_X_A_i_X_A_j)
-    term2 = -0.5 * g * g * coherent_expectation_X_i_X_j * term2
-    
-    # Term 3: (1/4) g² X_A^i² X_B^j²
-    term3 = 0.0
-    for i, X_A_i in enumerate(X_A_mats):
-        for j, X_B_j in enumerate(X_B_mats):
-            # tr(X_A^i²) * tr(X_B^j²)
-            trace_X_A_i_squared = tf.einsum("bij,bji->b", X_A_i, X_A_i)
-            trace_X_B_j_squared = tf.einsum("bij,bji->b", X_B_j, X_B_j)
-            term3 += tf.math.real(trace_X_A_i_squared * trace_X_B_j_squared)
-    term3 = 0.25 * g * g * term3
-    
-    # Term 4: -(1/4) g² X_A^i X_B^j X_A^j X_B^i
-    term4 = 0.0
-    for i, X_A_i in enumerate(X_A_mats):
-        for j, X_B_j in enumerate(X_B_mats):
-            # tr(X_A^i X_B^j X_A^j X_B^i)
-            product = tf.einsum("bij,bjk,bkl,bli->b", X_A_i, X_B_j, X_A_j, X_B_i)
-            term4 += tf.math.real(product)
-    term4 = -0.25 * g * g * term4
-    
-    potential = term1 + term2 + term3 + term4
     
     return potential if potential_only else kinetic + potential
 
